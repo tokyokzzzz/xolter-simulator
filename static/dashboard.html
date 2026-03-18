@@ -79,19 +79,23 @@
       border-left: 3px solid var(--blue);
     }
 
-    /* ── Controls ────────────────────────────────────── */
-    .controls-card {
+    /* ── Simulator Control ───────────────────────────── */
+    .sim-control-card {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 2px solid var(--blue);
       border-radius: 10px;
-      padding: 18px 20px;
+      padding: 20px 24px;
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
       flex-wrap: wrap;
-      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      box-shadow: 0 2px 8px rgba(26,111,196,.1);
     }
-    .controls-card label { font-size: .85rem; color: var(--text-muted); font-weight: 500; }
+    .sim-control-card label {
+      font-size: .85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
     select {
       background: var(--bg);
       color: var(--text);
@@ -116,8 +120,45 @@
     }
     button:hover  { opacity: .88; }
     button:active { transform: scale(.97); }
-    #btn-start { background: var(--blue); color: #fff; }
-    #btn-stop  { background: var(--red);  color: #fff; }
+    #btn-change-mode { background: var(--blue); color: #fff; }
+
+    #mode-feedback {
+      font-size: .85rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      min-height: 2em;
+      display: flex;
+      align-items: center;
+    }
+    #mode-feedback.success { background: var(--green-light); color: var(--green); }
+    #mode-feedback.error   { background: var(--red-light);   color: var(--red); }
+
+    /* ── Server Status Bar ───────────────────────────── */
+    #server-status-bar {
+      background: var(--blue-light);
+      border: 1px solid #c0d8f5;
+      border-radius: 8px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .85rem;
+      color: var(--blue);
+      font-weight: 500;
+    }
+    #server-status-bar .bar-label {
+      font-weight: 700;
+      font-size: .72rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: .7;
+    }
+    #server-mode-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
 
     /* ── Vitals ──────────────────────────────────────── */
     .vitals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -280,12 +321,12 @@
 
 <main>
 
-  <!-- Controls -->
+  <!-- Simulator Control -->
   <section>
-    <div class="section-title">Бақылау Параметрлері</div>
-    <div class="controls-card">
-      <label for="mode-select">Пациент Режимі:</label>
-      <select id="mode-select">
+    <div class="section-title">Симулятор Басқармасы</div>
+    <div class="sim-control-card">
+      <label for="sim-mode-select">Науқас жағдайы:</label>
+      <select id="sim-mode-select">
         <option value="NORMAL">ҚАЛЫПТЫ</option>
         <option value="BRADYCARDIA">БРАДИКАРДИЯ</option>
         <option value="TACHYCARDIA">ТАХИКАРДИЯ</option>
@@ -293,8 +334,16 @@
         <option value="HYPERTENSION">ГИПЕРТОНИЯ</option>
         <option value="MI">ЖИИ — Жүрек Ишемиялық Инфаркті</option>
       </select>
-      <button id="btn-start">&#9654; Бастау</button>
-      <button id="btn-stop">&#9632; Тоқтату</button>
+      <button id="btn-change-mode">&#9654; Режимді Өзгерту</button>
+      <span id="mode-feedback"></span>
+    </div>
+  </section>
+
+  <!-- Server Status Bar -->
+  <section style="margin-bottom: 16px;">
+    <div id="server-status-bar">
+      <span class="bar-label">Сервер режимі:</span>
+      <span id="server-mode-value">—</span>
     </div>
   </section>
 
@@ -375,32 +424,32 @@
 
 <script>
   // ── Config ──────────────────────────────────────────────────────────────
-  const WS_HOST = `ws://${window.location.host}`;
+  const API_HOST = 'http://13.60.179.54:8000';
+  const WS_URL   = 'ws://13.60.179.54:8000/ws/live';
   const MAX_LOG  = 20;
-  const CANVAS_W = 800;
-  const CANVAS_H = 160;
 
   // ── State ────────────────────────────────────────────────────────────────
   let ws        = null;
-  let signalBuf = new Array(CANVAS_W).fill(0);
+  let signalBuf = new Array(800).fill(0);
 
   // ── DOM refs ─────────────────────────────────────────────────────────────
-  const modeSelect   = document.getElementById('mode-select');
-  const btnStart     = document.getElementById('btn-start');
-  const btnStop      = document.getElementById('btn-stop');
-  const connStatus   = document.getElementById('conn-status');
-  const valBpm       = document.getElementById('val-bpm');
-  const valSys       = document.getElementById('val-sys');
-  const valDia       = document.getElementById('val-dia');
-  const diagBox      = document.getElementById('diagnosis-box');
-  const diagName     = document.getElementById('diagnosis-name');
-  const confBar      = document.getElementById('confidence-bar');
-  const confPct      = document.getElementById('confidence-pct');
-  const alertMsg     = document.getElementById('alert-message');
-  const logBody      = document.getElementById('log-body');
-  const canvas       = document.getElementById('ecg-canvas');
-  const ctx          = canvas.getContext('2d');
-  const headerDot    = document.getElementById('header-dot');
+  const simModeSelect    = document.getElementById('sim-mode-select');
+  const btnChangeMode    = document.getElementById('btn-change-mode');
+  const modeFeedback     = document.getElementById('mode-feedback');
+  const serverModeValue  = document.getElementById('server-mode-value');
+  const connStatus       = document.getElementById('conn-status');
+  const valBpm           = document.getElementById('val-bpm');
+  const valSys           = document.getElementById('val-sys');
+  const valDia           = document.getElementById('val-dia');
+  const diagBox          = document.getElementById('diagnosis-box');
+  const diagName         = document.getElementById('diagnosis-name');
+  const confBar          = document.getElementById('confidence-bar');
+  const confPct          = document.getElementById('confidence-pct');
+  const alertMsg         = document.getElementById('alert-message');
+  const logBody          = document.getElementById('log-body');
+  const canvas           = document.getElementById('ecg-canvas');
+  const ctx              = canvas.getContext('2d');
+  const headerDot        = document.getElementById('header-dot');
 
   // ── Canvas setup ─────────────────────────────────────────────────────────
   function resizeCanvas() {
@@ -412,7 +461,6 @@
 
   // ── Draw waveform ─────────────────────────────────────────────────────────
   function drawSignal(snippet) {
-    // Append new samples, drop old ones
     signalBuf = signalBuf.concat(snippet).slice(-canvas.width);
 
     const w = canvas.width;
@@ -420,7 +468,6 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, w, h);
 
-    // Grid lines
     ctx.strokeStyle = '#e8edf2';
     ctx.lineWidth = 1;
     for (let x = 0; x < w; x += 50) {
@@ -430,7 +477,6 @@
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
 
-    // Signal
     const min = Math.min(...signalBuf);
     const max = Math.max(...signalBuf);
     const range = max - min || 1;
@@ -475,6 +521,11 @@
     colorCode(valSys, d.systolic_bp,  90,  140);
     colorCode(valDia, d.diastolic_bp, 60,   90);
 
+    // Server mode status bar
+    if (d.mode) {
+      serverModeValue.textContent = DIAG_KK[d.mode] || d.mode;
+    }
+
     // Diagnosis
     const rawDiag = d.diagnosis || 'UNKNOWN';
     diagName.textContent = DIAG_KK[rawDiag] || rawDiag;
@@ -489,12 +540,10 @@
     confPct.style.color      = isAlert ? '#d32f2f' : '#1a6fc4';
     confPct.textContent      = pct + '%';
 
-    // Signal
     if (d.signal_snippet && d.signal_snippet.length) {
       drawSignal(d.signal_snippet);
     }
 
-    // Log row
     addLogRow(d, isAlert);
   }
 
@@ -519,13 +568,12 @@
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
-  function connect(mode) {
-    disconnect();
-    const url = `${WS_HOST}/ws/live/${mode}`;
-    ws = new WebSocket(url);
+  function connect() {
+    if (ws) { ws.close(); ws = null; }
+    ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
-      connStatus.textContent = 'ҚОСЫЛҒАН — ' + mode;
+      connStatus.textContent = 'ҚОСЫЛҒАН';
       connStatus.className   = 'connected';
     };
 
@@ -540,6 +588,8 @@
       connStatus.textContent = 'АЖЫРАТЫЛҒАН';
       connStatus.className   = 'disconnected';
       ws = null;
+      // Auto-reconnect after 3 seconds
+      setTimeout(connect, 3000);
     };
 
     ws.onerror = (e) => {
@@ -549,16 +599,33 @@
     };
   }
 
-  function disconnect() {
-    if (ws) { ws.close(); ws = null; }
-  }
+  // ── Change mode button ────────────────────────────────────────────────────
+  btnChangeMode.addEventListener('click', async () => {
+    const mode = simModeSelect.value;
+    btnChangeMode.disabled = true;
+    modeFeedback.textContent = '';
+    modeFeedback.className = '';
 
-  // ── Buttons ───────────────────────────────────────────────────────────────
-  btnStart.addEventListener('click', () => connect(modeSelect.value));
-  btnStop.addEventListener('click',  disconnect);
-  modeSelect.addEventListener('change', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) connect(modeSelect.value);
+    try {
+      const res = await fetch(`${API_HOST}/control/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const label = simModeSelect.options[simModeSelect.selectedIndex].text;
+      modeFeedback.textContent = `✅ Режим өзгертілді: ${label}`;
+      modeFeedback.className = 'success';
+    } catch (err) {
+      modeFeedback.textContent = `❌ Қате: ${err.message}`;
+      modeFeedback.className = 'error';
+    } finally {
+      btnChangeMode.disabled = false;
+    }
   });
+
+  // ── Auto-connect on load ──────────────────────────────────────────────────
+  connect();
 </script>
 
 </body>
