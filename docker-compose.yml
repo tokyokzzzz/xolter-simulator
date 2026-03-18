@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  holter-api:
+    build: .
+    container_name: holter-monitor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./simulator:/app/simulator
+      - ./api:/app/api
+      - ./ai:/app/ai
+      - ./static:/app/static
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Холтер Мониторы — Тікелей Бақылау</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #f0f2f5;
+      --surface:    #ffffff;
+      --border:     #dde1e7;
+      --blue:       #1a6fc4;
+      --blue-light: #e8f0fb;
+      --red:        #d32f2f;
+      --red-light:  #fdecea;
+      --green:      #2e7d32;
+      --green-light:#e8f5e9;
+      --text:       #1a1d23;
+      --text-muted: #6b7280;
+      --font:       system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      padding-bottom: 48px;
+    }
+
+    /* ── Header ──────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .pulse-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: var(--blue); }
+    header p  { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+
+    #conn-status {
+      font-size: .75rem;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      background: var(--bg);
+      letter-spacing: .3px;
+    }
+    #conn-status.connected    { border-color: var(--green); color: var(--green); background: var(--green-light); }
+    #conn-status.disconnected { border-color: #b0b8c1;     color: var(--text-muted); }
+
+    /* ── Layout ──────────────────────────────────────── */
+    main { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+    section { margin-bottom: 24px; }
+    .section-title {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      padding-left: 10px;
+      border-left: 3px solid var(--blue);
+    }
+
+    /* ── Controls ────────────────────────────────────── */
+    .controls-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .controls-card label { font-size: .85rem; color: var(--text-muted); font-weight: 500; }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1.5px solid var(--border);
+      padding: 8px 14px;
+      font-family: var(--font);
+      font-size: .9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: var(--blue); }
+    button {
+      padding: 8px 22px;
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    button:hover  { opacity: .88; }
+    button:active { transform: scale(.97); }
+    #btn-start { background: var(--blue); color: #fff; }
+    #btn-stop  { background: var(--red);  color: #fff; }
+
+    /* ── Vitals ──────────────────────────────────────── */
+    .vitals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 20px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .card-label {
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--blue);
+      transition: color .3s;
+    }
+    .card-unit { font-size: .72rem; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
+    .val-normal { color: var(--blue); }
+    .val-alert  { color: var(--red); }
+
+    /* ── Canvas ──────────────────────────────────────── */
+    #ecg-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      overflow: hidden;
+    }
+    #ecg-canvas {
+      display: block;
+      width: 100%;
+      height: 160px;
+      border-radius: 6px;
+    }
+
+    /* ── Diagnosis ───────────────────────────────────── */
+    #diagnosis-box {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      transition: background .4s, border-color .4s;
+    }
+    #diagnosis-box.alert-active {
+      background: var(--red-light);
+      border-color: var(--red);
+      animation: pulse-border 1.4s infinite;
+    }
+    @keyframes pulse-border {
+      0%,100%{ box-shadow: 0 0 0 0 rgba(211,47,47,.0); }
+      50%    { box-shadow: 0 0 0 6px rgba(211,47,47,.18); }
+    }
+    #diagnosis-label {
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    #diagnosis-name {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--blue);
+      letter-spacing: .5px;
+    }
+    #diagnosis-box.alert-active #diagnosis-name { color: var(--red); }
+    #confidence-wrap { text-align: right; }
+    #confidence-label { font-size: .7rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    #confidence-bar-bg {
+      width: 200px; height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+    #confidence-bar {
+      height: 100%;
+      background: var(--blue);
+      border-radius: 4px;
+      width: 0%;
+      transition: width .5s, background .3s;
+    }
+    #confidence-pct { font-size: 1.1rem; font-weight: 700; color: var(--blue); transition: color .3s; }
+    #alert-message {
+      width: 100%;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--red);
+      padding-top: 6px;
+      min-height: 1.2em;
+    }
+
+    /* ── Log ─────────────────────────────────────────── */
+    #log-table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    #log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .8rem;
+    }
+    #log-table thead th {
+      background: var(--bg);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    #log-scroll-wrap { max-height: 320px; overflow-y: auto; }
+    #log-scroll-wrap::-webkit-scrollbar { width: 6px; }
+    #log-scroll-wrap::-webkit-scrollbar-track { background: var(--bg); }
+    #log-scroll-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    #log-body tr { border-bottom: 1px solid var(--bg); }
+    #log-body tr.row-normal { background: var(--surface); }
+    #log-body tr.row-alert  { background: #fff5f5; }
+    #log-body td { padding: 8px 14px; }
+    #log-body td.td-diag { font-weight: 700; }
+    #log-body tr.row-normal td.td-diag { color: var(--blue); }
+    #log-body tr.row-alert  td.td-diag { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="pulse-dot" id="header-dot"></div>
+    <div>
+      <h1>Холтер Мониторы</h1>
+      <p>Талшықты-оптикалық пациент мониторингі &nbsp;|&nbsp; Сандық сигнал өңдеу + ЖИ диагностика</p>
+    </div>
+  </div>
+  <span id="conn-status" class="disconnected">АЖЫРАТЫЛҒАН</span>
+</header>
+
+<main>
+
+  <!-- Controls -->
+  <section>
+    <div class="section-title">Бақылау Параметрлері</div>
+    <div class="controls-card">
+      <label for="mode-select">Пациент Режимі:</label>
+      <select id="mode-select">
+        <option value="NORMAL">ҚАЛЫПТЫ</option>
+        <option value="BRADYCARDIA">БРАДИКАРДИЯ</option>
+        <option value="TACHYCARDIA">ТАХИКАРДИЯ</option>
+        <option value="HYPOTENSION">ГИПОТОНИЯ</option>
+        <option value="HYPERTENSION">ГИПЕРТОНИЯ</option>
+        <option value="MI">ЖИИ — Жүрек Ишемиялық Инфаркті</option>
+      </select>
+      <button id="btn-start">&#9654; Бастау</button>
+      <button id="btn-stop">&#9632; Тоқтату</button>
+    </div>
+  </section>
+
+  <!-- Vitals -->
+  <section>
+    <div class="section-title">Тікелей Көрсеткіштер</div>
+    <div class="vitals">
+      <div class="card">
+        <div class="card-label">Жүрек Соғысы</div>
+        <div class="card-value val-normal" id="val-bpm">--</div>
+        <div class="card-unit">уд/мин</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Систолалық ҚБ</div>
+        <div class="card-value val-normal" id="val-sys">--</div>
+        <div class="card-unit">мм сын. бағ.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Диастолалық ҚБ</div>
+        <div class="card-value val-normal" id="val-dia">--</div>
+        <div class="card-unit">мм сын. бағ.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Waveform -->
+  <section>
+    <div class="section-title">ФПГ Толқыны — Талшықты-оптикалық сигнал</div>
+    <div id="ecg-wrap">
+      <canvas id="ecg-canvas"></canvas>
+    </div>
+  </section>
+
+  <!-- Diagnosis -->
+  <section>
+    <div class="section-title">ЖИ Диагнозы</div>
+    <div id="diagnosis-box">
+      <div>
+        <div id="diagnosis-label">Ағымдағы Диагноз</div>
+        <div id="diagnosis-name">ДЕРЕКТЕР КҮТІЛУДЕ</div>
+      </div>
+      <div id="confidence-wrap">
+        <div id="confidence-label">Сенімділік</div>
+        <div id="confidence-bar-bg"><div id="confidence-bar"></div></div>
+        <div id="confidence-pct">0%</div>
+      </div>
+      <div id="alert-message"></div>
+    </div>
+  </section>
+
+  <!-- Log -->
+  <section>
+    <div class="section-title">Ескерту Журналы — Соңғы 20 өлшем</div>
+    <div id="log-table-wrap">
+      <table id="log-table">
+        <thead>
+          <tr>
+            <th>Уақыт белгісі</th>
+            <th>Режим</th>
+            <th>Диагноз</th>
+            <th>Сенімділік</th>
+            <th>уд/мин</th>
+            <th>Систолалық</th>
+            <th>Диастолалық</th>
+            <th>Ескерту</th>
+          </tr>
+        </thead>
+      </table>
+      <div id="log-scroll-wrap">
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
+          <tbody id="log-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────────────
+  const WS_HOST = `ws://${window.location.host}`;
+  const MAX_LOG  = 20;
+  const CANVAS_W = 800;
+  const CANVAS_H = 160;
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let ws        = null;
+  let signalBuf = new Array(CANVAS_W).fill(0);
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────
+  const modeSelect   = document.getElementById('mode-select');
+  const btnStart     = document.getElementById('btn-start');
+  const btnStop      = document.getElementById('btn-stop');
+  const connStatus   = document.getElementById('conn-status');
+  const valBpm       = document.getElementById('val-bpm');
+  const valSys       = document.getElementById('val-sys');
+  const valDia       = document.getElementById('val-dia');
+  const diagBox      = document.getElementById('diagnosis-box');
+  const diagName     = document.getElementById('diagnosis-name');
+  const confBar      = document.getElementById('confidence-bar');
+  const confPct      = document.getElementById('confidence-pct');
+  const alertMsg     = document.getElementById('alert-message');
+  const logBody      = document.getElementById('log-body');
+  const canvas       = document.getElementById('ecg-canvas');
+  const ctx          = canvas.getContext('2d');
+  const headerDot    = document.getElementById('header-dot');
+
+  // ── Canvas setup ─────────────────────────────────────────────────────────
+  function resizeCanvas() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // ── Draw waveform ─────────────────────────────────────────────────────────
+  function drawSignal(snippet) {
+    // Append new samples, drop old ones
+    signalBuf = signalBuf.concat(snippet).slice(-canvas.width);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid lines
+    ctx.strokeStyle = '#e8edf2';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 50) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+
+    // Signal
+    const min = Math.min(...signalBuf);
+    const max = Math.max(...signalBuf);
+    const range = max - min || 1;
+
+    ctx.strokeStyle = '#1a6fc4';
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = 'rgba(26,111,196,.3)';
+    ctx.shadowBlur = 3;
+    ctx.beginPath();
+    for (let i = 0; i < signalBuf.length; i++) {
+      const x = (i / (signalBuf.length - 1)) * w;
+      const y = h - ((signalBuf[i] - min) / range) * (h - 16) - 8;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // ── Diagnosis name map ────────────────────────────────────────────────────
+  const DIAG_KK = {
+    'NORMAL':       'ҚАЛЫПТЫ',
+    'BRADYCARDIA':  'БРАДИКАРДИЯ',
+    'TACHYCARDIA':  'ТАХИКАРДИЯ',
+    'HYPOTENSION':  'ГИПОТОНИЯ',
+    'HYPERTENSION': 'ГИПЕРТОНИЯ',
+    'MI':           'ЖИИ',
+    'UNKNOWN':      'БЕЛГІСІЗ',
+  };
+
+  // ── Update vitals ─────────────────────────────────────────────────────────
+  function colorCode(el, value, lowOk, highOk) {
+    el.classList.toggle('val-alert',  value < lowOk || value > highOk);
+    el.classList.toggle('val-normal', value >= lowOk && value <= highOk);
+  }
+
+  function updateUI(d) {
+    valBpm.textContent = d.bpm !== undefined ? d.bpm.toFixed(1) : '--';
+    valSys.textContent = d.systolic_bp  !== undefined ? d.systolic_bp.toFixed(0)  : '--';
+    valDia.textContent = d.diastolic_bp !== undefined ? d.diastolic_bp.toFixed(0) : '--';
+
+    colorCode(valBpm, d.bpm,         40,  120);
+    colorCode(valSys, d.systolic_bp,  90,  140);
+    colorCode(valDia, d.diastolic_bp, 60,   90);
+
+    // Diagnosis
+    const rawDiag = d.diagnosis || 'UNKNOWN';
+    diagName.textContent = DIAG_KK[rawDiag] || rawDiag;
+    const isAlert = d.is_alert === true;
+    diagBox.classList.toggle('alert-active', isAlert);
+    headerDot.style.background = isAlert ? '#d32f2f' : '#2e7d32';
+    alertMsg.textContent       = d.alert_message || '';
+
+    const pct = Math.round((d.confidence || 0) * 100);
+    confBar.style.width      = pct + '%';
+    confBar.style.background = isAlert ? '#d32f2f' : '#1a6fc4';
+    confPct.style.color      = isAlert ? '#d32f2f' : '#1a6fc4';
+    confPct.textContent      = pct + '%';
+
+    // Signal
+    if (d.signal_snippet && d.signal_snippet.length) {
+      drawSignal(d.signal_snippet);
+    }
+
+    // Log row
+    addLogRow(d, isAlert);
+  }
+
+  // ── Alert log ─────────────────────────────────────────────────────────────
+  function addLogRow(d, isAlert) {
+    const ts  = d.timestamp ? d.timestamp.replace('T', ' ').slice(0, 19) + 'Z' : '--';
+    const rawDiag = d.diagnosis || '--';
+    const row = document.createElement('tr');
+    row.className = isAlert ? 'row-alert' : 'row-normal';
+    row.innerHTML = `
+      <td>${ts}</td>
+      <td>${d.mode || '--'}</td>
+      <td class="td-diag">${DIAG_KK[rawDiag] || rawDiag}</td>
+      <td>${d.confidence !== undefined ? (d.confidence * 100).toFixed(1) + '%' : '--'}</td>
+      <td>${d.bpm !== undefined ? d.bpm.toFixed(1) : '--'}</td>
+      <td>${d.systolic_bp !== undefined ? d.systolic_bp.toFixed(0) : '--'} мм</td>
+      <td>${d.diastolic_bp !== undefined ? d.diastolic_bp.toFixed(0) : '--'} мм</td>
+      <td>${isAlert ? '&#9888; ЕСКЕРТУ' : '&#10003; НОРМА'}</td>
+    `;
+    logBody.insertBefore(row, logBody.firstChild);
+    while (logBody.rows.length > MAX_LOG) logBody.deleteRow(logBody.rows.length - 1);
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  function connect(mode) {
+    disconnect();
+    const url = `${WS_HOST}/ws/live/${mode}`;
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      connStatus.textContent = 'ҚОСЫЛҒАН — ' + mode;
+      connStatus.className   = 'connected';
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        updateUI(data);
+      } catch(e) { console.error('Parse error', e); }
+    };
+
+    ws.onclose = () => {
+      connStatus.textContent = 'АЖЫРАТЫЛҒАН';
+      connStatus.className   = 'disconnected';
+      ws = null;
+    };
+
+    ws.onerror = (e) => {
+      console.error('WebSocket error', e);
+      connStatus.textContent = 'ҚАТЕ';
+      connStatus.className   = 'disconnected';
+    };
+  }
+
+  function disconnect() {
+    if (ws) { ws.close(); ws = null; }
+  }
+
+  // ── Buttons ───────────────────────────────────────────────────────────────
+  btnStart.addEventListener('click', () => connect(modeSelect.value));
+  btnStop.addEventListener('click',  disconnect);
+  modeSelect.addEventListener('change', () => {
+    if (ws && ws.readyState === WebSocket.OPEN) connect(modeSelect.value);
+  });
+</script>
+
+</body>
+</html>

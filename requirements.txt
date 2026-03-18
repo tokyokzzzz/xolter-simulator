@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+websockets
+numpy
+scipy
+scikit-learn
+pandas
+matplotlib
+python-dotenv
+firebase-admin
+tqdm
+seaborn
