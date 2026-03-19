@@ -69,6 +69,34 @@ async def websocket_live(websocket: WebSocket):
         print(f"Supervisor disconnected: {supervisor.get('username')}")
 
 
+@app.websocket("/ws/admin")
+async def websocket_admin(websocket: WebSocket):
+    admin_key = websocket.query_params.get("key")
+
+    if admin_key != "holter-admin-2026":
+        await websocket.close(code=4003, reason="Invalid admin key")
+        return
+
+    await websocket.accept()
+    simulator_state.clients.add(websocket)
+    print("Admin dashboard connected")
+
+    try:
+        while True:
+            try:
+                await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                continue
+    except Exception:
+        pass
+    finally:
+        simulator_state.clients.discard(websocket)
+        print("Admin dashboard disconnected")
+
+
 class ModeRequest(BaseModel):
     mode: str
 
