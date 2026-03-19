@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from api.routes import router
 from api.simulator_state import simulator_state
+from api.auth import verify_supervisor_token
 
 app = FastAPI(title="Holter Monitor API")
 
@@ -36,8 +37,22 @@ async def root():
 
 @app.websocket("/ws/live")
 async def websocket_live(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+
+    if not token:
+        await websocket.close(code=4001, reason="No token provided")
+        return
+
+    supervisor = await verify_supervisor_token(token)
+
+    if not supervisor:
+        await websocket.close(code=4003, reason="Invalid or expired token")
+        return
+
     await websocket.accept()
     simulator_state.clients.add(websocket)
+    print(f"Supervisor connected: {supervisor.get('username')}")
+
     try:
         while True:
             try:
@@ -51,6 +66,7 @@ async def websocket_live(websocket: WebSocket):
         pass
     finally:
         simulator_state.clients.discard(websocket)
+        print(f"Supervisor disconnected: {supervisor.get('username')}")
 
 
 class ModeRequest(BaseModel):
