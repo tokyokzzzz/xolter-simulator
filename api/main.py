@@ -40,15 +40,17 @@ async def websocket_live(websocket: WebSocket):
     simulator_state.clients.add(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            try:
+                await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                continue
     except Exception:
         pass
     finally:
         simulator_state.clients.discard(websocket)
-        try:
-            await websocket.close()
-        except Exception:
-            pass
 
 
 class ModeRequest(BaseModel):

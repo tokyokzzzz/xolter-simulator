@@ -19,18 +19,23 @@ class SimulatorState:
     async def run_forever(self):
         self.running = True
         while self.running:
-            reading = self.generator.get_live_reading()
-            analysis = self.analyzer.analyze_live_reading(reading)
-            self.latest_reading = {**reading, **analysis}
+            try:
+                reading = self.generator.get_live_reading()
+                analysis = self.analyzer.analyze_live_reading(reading)
+                self.latest_reading = {**reading, **analysis}
 
-            dead_clients = set()
-            for client in self.clients:
-                try:
-                    await client.send_json(self.latest_reading)
-                except Exception:
-                    dead_clients.add(client)
+                if self.clients:
+                    dead_clients = set()
+                    for client in list(self.clients):
+                        try:
+                            await client.send_json(self.latest_reading)
+                        except Exception:
+                            dead_clients.add(client)
+                    self.clients -= dead_clients
 
-            self.clients -= dead_clients
+            except Exception as e:
+                print(f"Simulator loop error: {e}")
+
             await asyncio.sleep(1)
 
 
