@@ -10,6 +10,7 @@ class SimulatorState:
         self.analyzer = HolterAnalyzer()
         self.latest_reading = None
         self.clients = set()
+        self.fcm_tokens = set()
         self.running = False
 
     def set_mode(self, mode_name: str):
@@ -23,6 +24,16 @@ class SimulatorState:
                 reading = self.generator.get_live_reading()
                 analysis = self.analyzer.analyze_live_reading(reading)
                 self.latest_reading = {**reading, **analysis}
+
+                if self.latest_reading.get("is_alert") and self.fcm_tokens:
+                    from api.firebase_notifier import send_alert_notification
+                    for token in list(self.fcm_tokens):
+                        send_alert_notification(
+                            token,
+                            "🚨 МАҢЫЗДЫ ЕСКЕРТУ",
+                            self.latest_reading.get("alert_message", "Критикалық жағдай"),
+                            self.latest_reading.get("bpm", 0),
+                        )
 
                 if self.clients:
                     dead_clients = set()

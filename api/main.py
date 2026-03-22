@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from api.routes import router
 from api.simulator_state import simulator_state
 from api.auth import verify_supervisor_token
+from api.firebase_notifier import initialize_firebase
 
 app = FastAPI(title="Holter Monitor API")
 
@@ -27,6 +28,7 @@ app.include_router(router)
 
 @app.on_event("startup")
 async def startup_event():
+    initialize_firebase()
     asyncio.create_task(simulator_state.run_forever())
 
 
@@ -99,6 +101,27 @@ async def websocket_admin(websocket: WebSocket):
 
 class ModeRequest(BaseModel):
     mode: str
+
+
+class FCMTokenRequest(BaseModel):
+    token: str
+    fcm_token: str
+
+
+@app.post("/device/register-fcm")
+async def register_fcm_token(request: FCMTokenRequest):
+    supervisor = await verify_supervisor_token(request.token)
+    if not supervisor:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    simulator_state.fcm_tokens.add(request.fcm_token)
+    print(f"FCM token registered for: {supervisor.get('username')}")
+    return {"status": "registered"}
+
+
+@app.delete("/device/unregister-fcm")
+async def unregister_fcm_token(fcm_token: str):
+    simulator_state.fcm_tokens.discard(fcm_token)
+    return {"status": "unregistered"}
 
 
 @app.post("/control/mode")

@@ -8,6 +8,6 @@ scikit-learn
 pandas
 matplotlib
 python-dotenv
-firebase-admin
+firebase-admin==6.4.0
 tqdm
 seaborn
