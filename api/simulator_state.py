@@ -12,6 +12,8 @@ class SimulatorState:
         self.clients = set()
         self.fcm_tokens = set()
         self.running = False
+        from collections import deque
+        self.history = deque(maxlen=7200)
 
     def set_mode(self, mode_name: str):
         self.current_mode = mode_name
@@ -24,6 +26,18 @@ class SimulatorState:
                 reading = self.generator.get_live_reading()
                 analysis = self.analyzer.analyze_live_reading(reading)
                 self.latest_reading = {**reading, **analysis}
+
+                self.history.append({
+                    "timestamp": self.latest_reading.get("timestamp"),
+                    "bpm": self.latest_reading.get("bpm"),
+                    "systolic_bp": self.latest_reading.get("systolic_bp"),
+                    "diastolic_bp": self.latest_reading.get("diastolic_bp"),
+                    "mode": self.latest_reading.get("mode"),
+                    "diagnosis": self.latest_reading.get("diagnosis"),
+                    "confidence": self.latest_reading.get("confidence"),
+                    "is_alert": self.latest_reading.get("is_alert"),
+                    "alert_message": self.latest_reading.get("alert_message", ""),
+                })
 
                 if self.latest_reading.get("is_alert") and self.fcm_tokens:
                     from api.firebase_notifier import send_alert_notification
