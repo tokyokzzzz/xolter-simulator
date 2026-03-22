@@ -40,17 +40,14 @@ def get_report(mode_name: str):
     mode = ALL_MODES[mode_name]
     gen = SignalGenerator(mode_name=mode_name)
 
-    # Generate per-second readings across 24 hours (86400 seconds).
-    # Calling generate_seconds(86400) would allocate ~21M floats and take
-    # a long time; instead we sample one reading per second via get_live_reading()
-    # to keep the endpoint responsive while still covering the full 24-hour span.
-    seconds_in_day = 86400
+    # Sample 1 hour (3600 readings) and extrapolate to 24 hours.
+    sample_size = 3600
     bpm_values = []
     systolic_values = []
     diastolic_values = []
-    alert_count = 0
+    alert_count_per_hour = 0
 
-    for _ in range(seconds_in_day):
+    for _ in range(sample_size):
         reading = gen.get_live_reading()
         bpm = reading["bpm"]
         sys_bp = reading["systolic_bp"]
@@ -61,11 +58,13 @@ def get_report(mode_name: str):
         diastolic_values.append(dia_bp)
 
         if bpm < 40 or bpm > 120 or sys_bp < 90 or sys_bp > 140:
-            alert_count += 1
+            alert_count_per_hour += 1
 
     bpm_arr = np.array(bpm_values)
     sys_arr = np.array(systolic_values)
     dia_arr = np.array(diastolic_values)
+
+    alert_count = alert_count_per_hour * 24
 
     return {
         "mode": mode_name,
@@ -78,5 +77,6 @@ def get_report(mode_name: str):
         "average_systolic": round(float(sys_arr.mean()), 1),
         "average_diastolic": round(float(dia_arr.mean()), 1),
         "alert_count": alert_count,
-        "alert_percentage": round(alert_count / seconds_in_day * 100, 2),
+        "alert_percentage": round(alert_count / 86400 * 100, 2),
+        "note": "Statistics based on 1-hour sample, extrapolated to 24 hours",
     }
